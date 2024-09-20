@@ -1,0 +1,7 @@
+/artifacts
+/cache
+/node_modules
+/scripts/test.sh
+/params.json
+/networkData.json
+/logs
