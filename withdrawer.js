@@ -10,9 +10,6 @@ const main = async () => {
     NETWORK_DATA.websockets[0]
   );
 
-  let providerFlashBot = new ethers.providers.JsonRpcProvider(
-    NETWORK_DATA.flashBotsRPC
-  );
   let BLOCK_EXPLORER_TX, WETH;
 
   console.log("Network:", PARAMS.network);
@@ -20,7 +17,7 @@ const main = async () => {
   WETH = NETWORK_DATA.wrapped;
 
   let wallet = new ethers.Wallet(PARAMS.privatekeys[0], provider);
-  let contract = new ethers.Contract(NETWORK_DATA.contract, BUYBOT_ABI, PARAMS.useFlashBots ? providerFlashBot : wallet);
+  let contract = new ethers.Contract(NETWORK_DATA.contract, BUYBOT_ABI, wallet);
 
   try {
     let tx = await contract.withdrawToken(WETH);

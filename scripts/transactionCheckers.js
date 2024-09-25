@@ -49,12 +49,12 @@ const getTransactionMetadata = (transaction, maxGasParams) => {
 
   if (transaction.maxFeePerGas) out.IS_EIP1559 = true;
   if (out.IS_EIP1559) {
-    if (maxGasParams && transaction.maxFeePerGas.gte(maxGasParams.maxFeePerGas))
+    if (maxGasParams && (transaction.maxFeePerGas >= maxGasParams.maxFeePerGas))
       return out;
     out.maxFeePerGas = transaction.maxFeePerGas;
     out.maxPriorityFeePerGas = transaction.maxPriorityFeePerGas;
   } else {
-    if (maxGasParams && transaction.gasPrice.gte(maxGasParams.gasPrice))
+    if (maxGasParams && (transaction.maxFeePerGas >= maxGasParams.maxFeePerGas))
       return out;
     out.gasPrice = transaction.gasPrice;
   }
@@ -91,7 +91,7 @@ const checkLiquidityAddTx = async (transaction, args) => {
 
   let inputs = decoded.inputs;
   if (decoded.method === `addLiquidity${ABI_SYMB}`) {
-    inputs[3] = ethers.BigNumber.from(inputs[3].toString());
+    inputs[3] = ethers.toBigInt(inputs[3].toString());
 
     if (inputs[3].lt(minimumLiquidity)) return null;
     if (compareAddress(inputs[0], purchaseTokenAddress)) {
@@ -105,8 +105,8 @@ const checkLiquidityAddTx = async (transaction, args) => {
     }
     return out;
   } else if (decoded.method === "addLiquidity") {
-    inputs[4] = ethers.BigNumber.from(inputs[4].toString());
-    inputs[5] = ethers.BigNumber.from(inputs[5].toString());
+    inputs[4] = ethers.toBigInt(inputs[4].toString());
+    inputs[5] = ethers.toBigInt(inputs[5].toString());
     if (compareAddress(inputs[0], purchaseTokenAddress)) {
       if (inputs[5].lt(minimumLiquidity)) return null;
       out.liquidityToken = inputs[1];
@@ -159,16 +159,16 @@ const checkRugPullTx = async (transaction, args) => {
   // Use gas multiplier
   if (out.IS_EIP1559) {
 
-    out.maxFeePerGas = ethers.BigNumber.from(
+    out.maxFeePerGas = ethers.toBigInt(
       Math.ceil(Number(transaction.maxFeePerGas) * gasMultiplier)
     );
 
-    out.maxPriorityFeePerGas = ethers.BigNumber.from(
+    out.maxPriorityFeePerGas = ethers.toBigInt(
       Math.ceil(Number(transaction.maxPriorityFeePerGas) * gasMultiplier)
     );
   }
   else
-    out.gasPrice = ethers.BigNumber.from(
+    out.gasPrice = ethers.toBigInt(
       Math.ceil(Number(transaction.gasPrice) * gasMultiplier)
     );
 
@@ -189,9 +189,7 @@ const checkRugPullTx = async (transaction, args) => {
   let fwOut = checkFollowWalletSell(transaction, {
     ...args,
     followed: null,
-    purchaseTokenBalance: args.purchaseTokenBalance.mul(
-      args.balanceCheckMultiplier
-    ),
+    purchaseTokenBalance: args.purchaseTokenBalance * args.balanceCheckMultiplier,
     externalCheck: true,
   });
 
@@ -393,12 +391,12 @@ const checkPercentageGains = async (transaction, args) => {
 
   // wadi added this to fix sell on %gain
   else
-    out.gasPrice = ethers.BigNumber.from(
+    out.gasPrice = ethers.toBigInt(
       Math.ceil(Number(transaction.gasPrice) * gasMultiplier)
     );
   let currentPrice = (
     await router.getAmountsOut(
-      ethers.utils.parseUnits(
+      ethers.parseUnits(
         "1",
         await new ethers.Contract(
           purchaseTokenAddress,
@@ -411,20 +409,18 @@ const checkPercentageGains = async (transaction, args) => {
   )[1];
   // console.log("currentPrice", currentPrice, "priceAtBuy", priceAtBuy, "gain", Number(currentPrice.sub(priceAtBuy).mul("10000").div(priceAtBuy)))
   if (!highestPrice) highestPrice = currentPrice;
-  else if (currentPrice.gt(highestPrice)) highestPrice = currentPrice;
+  else if (currentPrice > highestPrice) highestPrice = currentPrice;
 
-  if (
-    currentPrice.lt(
-      highestPrice.sub(highestPrice.mul(sellThresholdFall).div(100))
-    )
-  ) {
+  const comparisonValue = (currentPrice - priceAtBuy) * 10000n / priceAtBuy;
+
+  if (currentPrice < comparisonValue) {
     Log("Price fell by threshold percentage!!!");
     return { ...out, hash: _lastGainTx };
   }
   // Makar disabled this
   // if (currentPrice.gt(priceAtBuy)) {
   let gain = Number(
-    currentPrice.sub(priceAtBuy).mul("10000").div(priceAtBuy)
+    (currentPrice - priceAtBuy) * 10000n / priceAtBuy
   );
   if (storedGain != gain) {
     storedGain = gain;
@@ -432,7 +428,7 @@ const checkPercentageGains = async (transaction, args) => {
     Log("Current gains:", gain / 100, "%");
   }
   // Makar added this to include negative gain
-  if (currentPrice.gt(priceAtBuy) && gain >= sellOnPercentageGain) {
+  if ((currentPrice > priceAtBuy) && gain >= sellOnPercentageGain) {
     // end of makar
 
     Log("Price above gain criteria!!!");
@@ -491,16 +487,16 @@ const checkDevAction = async (transaction, args) => {
 
   if (out.IS_EIP1559) {
 
-    out.maxFeePerGas = ethers.BigNumber.from(
+    out.maxFeePerGas = ethers.toBigInt(
       Math.ceil(Number(transaction.maxFeePerGas) * gasMultiplier)
     );
 
-    out.maxPriorityFeePerGas = ethers.BigNumber.from(
+    out.maxPriorityFeePerGas = ethers.toBigInt(
       Math.ceil(Number(transaction.maxPriorityFeePerGas) * gasMultiplier)
     );
   }
   else
-    out.gasPrice = ethers.BigNumber.from(
+    out.gasPrice = ethers.toBigInt(
       Math.ceil(Number(transaction.gasPrice) * gasMultiplier)
     );
 
@@ -535,7 +531,7 @@ const checkDevAction = async (transaction, args) => {
   // Wadi please check with Daniel what is the function of the following code. This was disabled by slice.
   /* if (liquidityTokenList.includes(purchaseTokenAddress)) return null;
  
-   let maxLiquidityEncountered = ethers.BigNumber.from(0);
+   let maxLiquidityEncountered = ethers.toBigInt(0);
    for (let i = 0; i <= liquidityTokenList.length; i++) {
      try {
        // CHECKS IF PAIR EXISTS
@@ -588,16 +584,16 @@ const checkFollowWallet = async (transaction, args) => {
   // Use gas multiplier
   if (out.IS_EIP1559) {
 
-    out.maxFeePerGas = ethers.BigNumber.from(
+    out.maxFeePerGas = ethers.toBigInt(
       Math.ceil(Number(transaction.maxFeePerGas) * gasMultiplier)
     );
 
-    out.maxPriorityFeePerGas = ethers.BigNumber.from(
+    out.maxPriorityFeePerGas = ethers.toBigInt(
       Math.ceil(Number(transaction.maxPriorityFeePerGas) * gasMultiplier)
     );
   }
   else
-    out.gasPrice = ethers.BigNumber.from(
+    out.gasPrice = ethers.toBigInt(
       Math.ceil(Number(transaction.gasPrice) * gasMultiplier)
     );
 
@@ -635,16 +631,16 @@ const checkFollowWalletSell = (transaction, args) => {
   // Use gas multiplier
   if (out.IS_EIP1559) {
 
-    out.maxFeePerGas = ethers.BigNumber.from(
+    out.maxFeePerGas = ethers.toBigInt(
       Math.ceil(Number(transaction.maxFeePerGas) * gasMultiplier)
     );
 
-    out.maxPriorityFeePerGas = ethers.BigNumber.from(
+    out.maxPriorityFeePerGas = ethers.toBigInt(
       Math.ceil(Number(transaction.maxPriorityFeePerGas) * gasMultiplier)
     );
   }
   else
-    out.gasPrice = ethers.BigNumber.from(
+    out.gasPrice = ethers.toBigInt(
       Math.ceil(Number(transaction.gasPrice) * gasMultiplier)
     );
 
@@ -681,7 +677,7 @@ const checkFollowWalletSell = (transaction, args) => {
   if (!compareAddress(path[0], purchaseTokenAddress)) return null;
   if (!externalCheck) out.followSell = true;
 
-  tokenIn = ethers.BigNumber.from(tokenIn.toString());
+  tokenIn = ethers.toBigInt(tokenIn.toString());
   if (tokenIn.lt(purchaseTokenBalance)) return null;
 
   return out;

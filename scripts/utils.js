@@ -92,11 +92,12 @@ const formatMaxTaxes = (
   _name,
   logger
 ) => {
-  let maxTax = ethers.constants.MaxUint256;
+  let maxTax = ethers.MaxUint256;
   if (!_useChecks) return maxTax;
 
   if (_acceptCondition) {
-    maxTax = ethers.utils.parseEther(String(_maxTax)).div(100);
+    // maxTax = ethers.parseEther(String(_maxTax)).div(100n);
+    maxTax = ethers.parseEther(String(_maxTax)) / 100n; // Use the `/` operator with BigInt
     logger(`Max ${_name} taxes set at ${_maxTax}%`);
   } else logger(`Ignoring ${_name} taxes.`);
 
@@ -107,6 +108,10 @@ const constructTxUrl = (tx) => {
   return `${BLOCK_EXPLORER_TX}${tx.hash}`;
 };
 
+const constructTxUrlget = (tx) => {
+  return `${BLOCK_EXPLORER_TX}${tx}`;
+};
+
 async function reason(provider, tx) {
   let txData = await provider.getTransaction(tx.hash);
   let code = await provider.call(txData, tx.blockNumber);
@@ -115,7 +120,7 @@ async function reason(provider, tx) {
 }
 
 const getBalanceOfTokenFmt = async (token_, address) => {
-  return ethers.utils.formatUnits(
+  return ethers.formatUnits(
     await token_.balanceOf(address),
     await token_.decimals()
   );
@@ -209,4 +214,5 @@ module.exports = {
   getTxFailReasonLite,
   getTxFailStatus,
   getRandomNumber,
+  constructTxUrlget
 };
